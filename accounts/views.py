@@ -2,6 +2,7 @@ from django.shortcuts import render,redirect
 from django.http import HttpResponse
 from django.forms import formset_factory, inlineformset_factory
 from accounts import urls
+from django.contrib.auth.forms import UserCreationForm
 
 from accounts.forms import OrderForm
 from .models import *
@@ -94,3 +95,11 @@ def deleteOrder(request,pk):
 
     return render(request,'accounts/delete_order.html',context)
 
+def loginPage(request):
+    context={}
+    return render(request,'accounts/login.html',context)
+
+def registerPage(request):
+    form=UserCreationForm()
+    context={'form':form}
+    return render(request,'accounts/register.html',context)
