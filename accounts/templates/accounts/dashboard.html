@@ -23,10 +23,10 @@
 				<tr>
 					<td>{{ customer.name }}</td>
 					<td>{{ customer.phone }}</td>
-					<td><a class="btn btn-sm btn-info" href = "{% url 'customer' customer.id %}"> view </a></td>
+					<td><a class="btn btn-sm btn-info" href="{% url 'customer' customer.id %}"> view </a></td>
 				</tr>
 				{%endfor%}
-				
+
 
 			</table>
 		</div>
@@ -53,7 +53,7 @@
 					<td> <a class="btn btn-sm btn-danger" href="{% url 'delete_order' order.id %}">Delete</a> </td>
 				</tr>
 				{%endfor%}
-		
+
 			</table>
 		</div>
 	</div>
