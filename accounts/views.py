@@ -4,19 +4,39 @@ from django.forms import formset_factory, inlineformset_factory
 from accounts import urls
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth import authenticate, login, logout
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import Group
 
 from accounts.forms import OrderForm
 from .models import *
 from .filters import *
 from .forms import *
+from .decorators import *
 
-from django.contrib import messages
-from django.contrib.auth.decorators import login_required
 
 # Create your views here.
 
 
 @login_required(login_url="login")
+@allowed_user(allowed_roles=["customers"])
+def userPage(request):
+    orders = request.user.customer.order_set.all()
+    total_order = orders.count()
+    delivered_order_count = orders.filter(status="Delivered").count()
+    pending_order_count = orders.filter(status="Pending").count()
+    print(orders)
+    context = {
+        "orders": orders,
+        "total_order": total_order,
+        "delivered_order_count": delivered_order_count,
+        "pending_order_count": pending_order_count,
+    }
+    return render(request, "accounts/user.html", context)
+
+
+@login_required(login_url="login")
+@admin_only
 def home(request):
     customers = Customer.objects.all()
     orders = Order.objects.all()
@@ -41,12 +61,14 @@ def home(request):
 
 
 @login_required(login_url="login")
+@allowed_user(allowed_roles=["admin"])
 def product(request):
     products = Product.objects.all()
     return render(request, "accounts/products.html", {"products": products})
 
 
 @login_required(login_url="login")
+@allowed_user(allowed_roles=["admin"])
 def customer(request, pk_test):
     customer = Customer.objects.get(id=pk_test)
     total_orders = customer.order_set.all()
@@ -65,6 +87,7 @@ def customer(request, pk_test):
 
 
 @login_required(login_url="login")
+@allowed_user(allowed_roles=["admin"])
 def createOrder(request, pk):
     OrderFormset = inlineformset_factory(
         Customer, Order, fields=("product", "status"), extra=5
@@ -85,6 +108,22 @@ def createOrder(request, pk):
 
 
 @login_required(login_url="login")
+@allowed_user(allowed_roles=["customers"])
+def account_settings(request):
+    user = request.user.customer
+    form = CustomerForm(instance=user)
+
+    if request.method == "POST":
+        form = CustomerForm(request.POST, request.FILES, instance=user)
+        if form.is_valid():
+            form.save()
+
+    context = {"form": form}
+    return render(request, "accounts/account_settings.html", context)
+
+
+@login_required(login_url="login")
+@allowed_user(allowed_roles=["admin"])
 def updateOrder(request, pk):
     order = Order.objects.get(id=pk)
     form = OrderForm(instance=order)
@@ -101,6 +140,7 @@ def updateOrder(request, pk):
 
 
 @login_required(login_url="login")
+@allowed_user(allowed_roles=["admin"])
 def deleteOrder(request, pk):
     order = Order.objects.get(id=pk)
     context = {"item": order}
@@ -112,43 +152,44 @@ def deleteOrder(request, pk):
     return render(request, "accounts/delete_order.html", context)
 
 
+@unauthenticated_user
 def loginPage(request):
-    if request.user.is_authenticated:
-        return redirect("home")
-    else:
-        context = {}
-        if request.method == "POST":
-            username = request.POST.get("username")
-            password = request.POST.get("password")
+    context = {}
+    if request.method == "POST":
+        username = request.POST.get("username")
+        password = request.POST.get("password")
 
-            user = authenticate(request, username=username, password=password)
+        user = authenticate(request, username=username, password=password)
 
-            if user is not None:
-                login(request, user)
-                return redirect("home")
-            else:
-                messages.info(request, "username or password is incorrect")
-                return render(request, "accounts/login.html", context)
+        if user is not None:
+            login(request, user)
+            return redirect("home")
+        else:
+            messages.info(request, "username or password is incorrect")
+            return render(request, "accounts/login.html", context)
 
-        return render(request, "accounts/login.html", context)
+    return render(request, "accounts/login.html", context)
 
 
+@unauthenticated_user
 def registerPage(request):
+    form = CreateUserForm()
+    if request.method == "POST":
+        form = CreateUserForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            username = form.cleaned_data.get("username")
 
-    if request.user.is_authenticated:
-        return redirect("home")
-    else:
-        form = CreateUserForm()
-        if request.method == "POST":
-            form = CreateUserForm(request.POST)
-            if form.is_valid():
-                form.save()
-                username = form.cleaned_data.get("username")
-                messages.success(request, "Profile created for " + username)
-                return redirect("/login")
+            group = Group.objects.get(name="customers")
+            user.groups.add(group)
 
-        context = {"form": form}
-        return render(request, "accounts/register.html", context)
+            Customer.objects.create(user=user)
+
+            messages.success(request, "Profile created for " + username)
+            return redirect("/login")
+
+    context = {"form": form}
+    return render(request, "accounts/register.html", context)
 
 
 def logoutPage(request):
